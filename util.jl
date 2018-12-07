@@ -1,4 +1,4 @@
-function getlines(path)
+function getlines(path)::Array{String}
     retval = []
     open(path) do file
         for line in eachline(file)
