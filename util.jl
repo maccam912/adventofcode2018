@@ -126,3 +126,136 @@ function getlines(path)::Array{String}
     end
     return retval
 end
+
+import Base.setindex!
+
+mutable struct TapeDict{T}
+    data::Dict{Int64,T}
+    default::T
+    min::Int64
+    max::Int64
+end
+
+function getindex(t::TapeDict, i::Int64)
+    try
+        return t.data[i]
+    catch err
+        if isa(err, KeyError)
+            if i < t.min
+                t.min = i
+            elseif i > t.max
+                t.max = i
+            end
+            t.data[i] = t.default
+            return t.default
+        end
+    end
+end
+
+function getindex(t::TapeDict, is::UnitRange{Int64})
+    return [t[i] for i in is]
+end
+
+function setindex!(t::TapeDict, x, i::Int64)
+    t.data[i] = x
+    if i < t.min
+        t.min = i
+    elseif i > t.max
+        t.max = i
+    end
+end
+
+mutable struct InfiniteBitArray
+    pos::BitArray{1}
+    neg::BitArray{1}
+    zero::Bool
+    default::Bool
+    min::Int64
+    max::Int64
+end
+
+function extend(t::InfiniteBitArray, min::Int64, max::Int64)
+    if max > t.max
+        for _ in t.max:(2*max)
+            push!(t.pos, t.default)
+        end
+        t.max = 2*max
+    end
+    if min < t.min
+        for _ in t.min:-1:(2*min)
+            push!(t.neg, t.default)
+        end
+        t.min = 2*min
+    end
+end
+
+function getindex(t::InfiniteBitArray, idx::Int64)
+    extend(t, idx, idx)
+    if idx == 0
+        return t.zero
+    elseif idx > 0
+        return t.pos[idx]
+    else
+        return t.neg[abs(idx)]
+    end
+end
+
+function getindex(t::InfiniteBitArray, is::UnitRange{Int64})
+    extend(t,is.start,is.stop)
+    if is.start < 0
+        if is.stop < 0
+            return t.neg[abs(is.start):-1:abs(is.stop)]
+        elseif is.stop == 0
+            part_a = t.neg[abs(is.start):-1:1]
+            push!(part_a, t.zero)
+            return part_a
+        else # is.stop > 0
+            part_a = t.neg[abs(is.start):-1:1]
+            push!(part_a, t.zero)
+            part_c = t.pos[1:is.stop]
+            return vcat(part_a, part_c)
+        end
+    elseif is.start == 0
+        part_a = [t.zero]
+        part_b = t.pos[1:is.stop]
+        return vcat(part_a, part_b)
+    else
+        return t.pos[is.start:is.stop]
+    end
+end
+
+function setindex!(t::InfiniteBitArray, v::Bool, idx::Int64)
+    extend(t,idx,idx)
+    if idx == 0
+        t.zero = v
+    elseif idx > 0
+        t.pos[idx] = v
+    else #idx < 0
+        t.neg[abs(idx)] = v
+    end
+end
+
+mutable struct Tape
+    current::InfiniteBitArray
+    next::InfiniteBitArray
+    min::Int64
+    max::Int64
+end
+
+function getindex(t::Tape, idx::Int64)::Bool
+    return t.current[idx]
+end
+
+function getindex(t::Tape, is::UnitRange{Int64})::Bool
+    return t.current[is]
+end
+
+function setindex!(t::Tape, v::Bool, idx::Int64)
+    t.current[idx] = v
+end
+
+function Tape()
+    current = InfiniteBitArray([], [], false, false, 0, 0)
+    next = InfiniteBitArray([], [], false, false, 0, 0)
+    return Tape(current, next, 0, 0)
+end
