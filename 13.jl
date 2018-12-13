@@ -164,4 +164,6 @@ end
 
 remove_crashed_carts(aocmap...)
 
-run_tick(aocmap...)
+while length(aocmap[2]) > 1
+    run_tick(aocmap...)
+end
