@@ -10,6 +10,14 @@ mutable struct LinkedList{T}
     length::Int64
 end
 
+import Base.push!
+function push!(xs::LinkedList, x)
+    newnode = LinkedListNode(x, xs.tail, nothing)
+    xs.tail.next = newnode
+    xs.tail = newnode
+    xs.length += 1
+end
+
 function check_length(a::LinkedList)::Bool
     length = 1
     h = a.head
@@ -82,11 +90,19 @@ function getindex(a::LinkedList, idx::Int64)
         return h.data
     else
         h = a.tail
-        for i in 1:(abs(idx))
+        for i in 2:(abs(idx))
             h = h.prev
         end
         return h.data
     end
+end
+
+function getindex(a::LinkedList, idxs::UnitRange{Int64})
+    result = []
+    for idx in idxs.start:idxs.stop
+        push!(result, a[idx])
+    end
+    return result
 end
 
 import Base.deleteat!
