@@ -1,4 +1,4 @@
-using ProgressMeter, Images, Plots
+using Images, Plots
 include("util.jl")
 
 function parse_line(line::String)::Dict{Symbol,UnitRange{Int64}}
@@ -54,104 +54,112 @@ function read_input()
     return parsed_lines, grid
 end
 
-function timestep(grid::Array{Char,2}, movedir::Int64, bounds::Array{Int64})::Int64
-    count = 0
-    for y in size(grid)[1]:-1:1
-        if movedir > 0
-            xitr = size(grid)[2]:-1:bounds[1]
-        else
-            xitr = bounds[1]:size(grid)[2]
-        end
-        for x in xitr
-            if grid[y,x] in ",W"
-                count += 1
-            end
-            if y == size(grid)[1] && grid[y,x] == 'W'
-                # Any water on bottom row is gone
-                grid[y,x] = ','
-            elseif grid[y,x] == 'W' && grid[y+1,x] in ",."
-                # Any water with room under it moves down
-                grid[y,x] = ','
-                grid[y+1,x] = 'W'
-            elseif grid[y,x] == 'W' && grid[y,x+movedir] in ",."
-                # Any water that can't go down but has room left/right goes there
-                if y > 1 && grid[y-1,x+movedir] != 'W'
-                    grid[y,x] = ','
-                    grid[y,x+movedir] = 'W'
-                end
-            elseif grid[y,x] == 'W' && grid[y,x-movedir] in ",."
-                # Any water that can't go down but has room left/right goes there
-                if y > 1 && grid[y-1,x-movedir] != 'W'
-                    grid[y,x] = ','
-                    grid[y,x-movedir] = 'W'
-                end
-            end
-        end
+function hasWall(x::Int64,y::Int64,grid::Array{Char,2},direction::Int64)
+    if grid[y,x+direction] == '#' && grid[y+1,x] in "#~"
+        return true
+    elseif grid[y,x+direction] == '.'
+        return false
+    elseif grid[y+1,x] in ".|"
+        return false
+    else
+        return hasWall(x+direction,y,grid,direction)
     end
-    if grid[1,500] in ",."
-        grid[1,500] = 'W'
-    end
-    return count
 end
 
-function convert_to_color(x::Char)::RGB
-    if x == '#'
-        return RGB(0.5,0,0)
-    elseif x == 'W'
+function hasBothWalls(x::Int64,y::Int64,grid::Array{Char,2})
+    if hasWall(x,y,grid,1) && hasWall(x,y,grid,-1)
+        return true
+    else
+        return false
+    end
+end
+
+function fillside(x::Int64,y::Int64,grid::Array{Char,2},direction::Int64)
+    if grid[y,x] == '#'
+        return
+    else
+        grid[y,x] = '~'
+        fillside(x+direction,y,grid,direction)
+    end
+end
+
+function fillLevel(x::Int64,y::Int64,grid::Array{Char,2})
+    fillside(x,y,grid,1)
+    fillside(x,y,grid,-1)
+end
+
+function ffill(x::Int64,y::Int64,grid::Array{Char,2},bounds::Array{Int64,1})
+    #println("plotting")
+    #plotgrid(grid)
+    #sleep(0.025)
+    if y < bounds[4]
+        if grid[y+1,x] == '.'
+            grid[y+1,x] = '|'
+            ffill(x,y+1,grid,bounds)
+        end
+        if grid[y+1,x] in "~#" && grid[y,x+1] == '.'
+            grid[y,x+1] = '|'
+            ffill(x+1,y,grid,bounds)
+        end
+        if grid[y+1,x] in "~#" && grid[y,x-1] == '.'
+            grid[y,x-1] = '|'
+            ffill(x-1,y,grid,bounds)
+        end
+        if hasBothWalls(x,y,grid)
+            fillLevel(x,y,grid)
+        end
+    end
+    return
+end
+
+function color_cell(x::Char)::RGB
+    if x == '~'
         return RGB(0,0,1)
-    elseif x == ','
+    elseif x == '|'
         return RGB(0,0,0.5)
+    elseif x == '#'
+        return RGB(1,0,0)
     else
         return RGB(1,1,1)
     end
 end
 
-function part_1(grid::Array{Char,2},bounds::Array{Int64})#::Array{Int64}
-    scores::Array{Int64} = []
-    l = 10000
-    #frames::Array{Array{Char,2}} = []
-    @showprogress for i in 1:l
-        movedir = rand([-1,1])
-        push!(scores, timestep(grid,movedir,bounds))
-        #if i % 10 == 0
-        #    push!(frames, grid[bounds[3]:bounds[4],bounds[1]:bounds[2]])
-        #end
-        #println(i[1:13,494:507])
-    end
-    #return frames, scores
-    return scores
-end
-
-function convert_frames(frames::Array{Array{Char,2},1})
-    output = map(x->RGB(1,1,1),zeros(size(frames[1])...,length(frames)))
-    @showprogress for z in 1:length(frames)
-        for y in 1:size(frames[1])[2]
-            for x in 1:size(frames[1])[1]
-                output[x,y,z] = convert_to_color(frames[z][x,y])
-            end
-        end
-    end
-    newframes = []
-    @showprogress for i in 1:length(frames)
-        push!(newframes, output[:,:,i])
-    end
-    return newframes
+function plotgrid(grid)
+    plt = plot(color_cell.(grid[1:40,480:520]))
+    gui(plt)
 end
 
 parsed_lines, grid = read_input()
 bounds = get_bounds(parsed_lines)
+ffill(500,1,grid,bounds)
+i = color_cell.(grid[1:40,480:520])
 
-# run for 1000 timesteps
-frames, scores = part_1(grid,bounds)
-realscores = part_1(grid,bounds)
-plot(realscores)
-println(realscores[end])
-ff = convert_to_color.(grid)
-plot(ff)
-_frames = convert_frames(frames)
-anim = @animate for f in _frames
-    plot(f);
+function part_1()
+    count = 0
+    for row in 1:size(grid)[1]
+        for col in 1:size(grid)[2]
+            if grid[row,col] in "~|"
+                count += 1
+            end
+        end
+    end
+    return count
 end
-gif(anim, "anim.gif", fps=15)
 
-plot(scores)
+c = part_1()
+println(c)
+
+function part_2()
+    count = 0
+    for row in 1:size(grid)[1]
+        for col in 1:size(grid)[2]
+            if grid[row,col] in "~"
+                count += 1
+            end
+        end
+    end
+    return count
+end
+
+d = part_2()
+println(d)
