@@ -1,4 +1,4 @@
-using ProgressMeter
+using ProgressMeter, JuMP, Clp
 include("util.jl")
 const datafile = "inputs/23.txt"
 struct Nanobot
@@ -111,6 +111,17 @@ function part_2()
     return sorted_2
 end
 
+function part_3()
+    nanobots = parse_input()
+    m = Model(solver = ClpSolver())
+    @variable(m, 0 <= x <= 1000)
+    @variable(m, 0 <= y <= 1000)
+    @variable(m, 0 <= z <= 1000)
+    @objective(m, max, score(x,y,z,nanobots))
+    status = solve(m)
+    return m
+end
 
 part_1()
 clist = part_2()
+part_3()
