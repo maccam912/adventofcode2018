@@ -1,4 +1,4 @@
-using ProgressMeter, JuMP, Clp
+using ProgressMeter, BlackBoxOptim
 include("util.jl")
 const datafile = "inputs/23.txt"
 struct Nanobot
@@ -88,40 +88,40 @@ function score(x::Int64,y::Int64,z::Int64,nb::Array{Nanobot})::Int64
     return s
 end
 
-function part_2()
+function score()
     nanobots = parse_input()
-    corners_lists = corners.(nanobots)
-    corners_list::Array{Tuple{Int64,Int64,Int64}} = []
-    for c in corners_lists
-        for _c in c
-            neighborhood = get_neighborhood(_c)
-            for n in neighborhood
-                push!(corners_list, n)
+    return (w) -> begin
+        x = round(w[1])
+        y = round(w[2])
+        z = round(w[3])
+        score = 0
+        for n in nanobots
+            if mdist(x,y,z,n.x,n.y,n.z) <= n.r
+                score += 1
             end
         end
+        return float(1000-score)+(float(mdist(x,y,z,0,0,0))/848312125.0)
     end
-    scores = []
-    @showprogress for c in corners_list
-        push!(scores, (c, score(c[1],c[2],c[3],nanobots)))
-    end
-    scores_2 = map(x->(mdist(x[1][1],x[1][2],x[1][3],0,0,0),x[1],x[2]), scores)
-    sorted = sort(scores_2, by=x->-x[3])
-    maxscore = sorted[1][3]
-    sorted_2 = sort(filter(x->x[3] == maxscore, sorted), by=x->x[1])
-    return sorted_2
 end
 
-function part_3()
+nanobots = parse_input()
+radii = sort(collect(nanobots), by=x->-x.r)
+biggest_radius = radii[1]
+minx, maxx, miny, maxy, minz, maxz = minmaxxyz(nanobots, biggest_radius.r)
+fitness_func(f) = f[1]+(f[2]/mdist(0,0,0,maxx,maxy,maxz))
+
+function part_2()
     nanobots = parse_input()
-    m = Model(solver = ClpSolver())
-    @variable(m, 0 <= x <= 1000)
-    @variable(m, 0 <= y <= 1000)
-    @variable(m, 0 <= z <= 1000)
-    @objective(m, max, score(x,y,z,nanobots))
-    status = solve(m)
-    return m
+    radii = sort(collect(nanobots), by=x->-x.r)
+    biggest_radius = radii[1]
+    minx, maxx, miny, maxy, minz, maxz = minmaxxyz(nanobots, biggest_radius.r)
+    mi = minimum([minx,miny,minz])
+    ma = maximum([maxx,maxy,maxz])
+    score_func = score()
+    res = bboptimize(score_func; Method=:adaptive_de_rand_1_bin_radiuslimited, SearchRange = (float(mi),float(ma)), NumDimensions = 3, MaxTime = 1800.0, PopulationSize=1000)
+    return res
 end
 
 part_1()
-clist = part_2()
-part_3()
+results = part_2()
+results
